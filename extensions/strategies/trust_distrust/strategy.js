@@ -20,16 +20,16 @@ module.exports = function container (get, set, clear) {
 
     calculate: function (s) {
       if (typeof s.trust_distrust_start_greed === 'undefined') {
-        s.trust_distrust_start_greed = s.period.high
+        s.trust_distrust_start_greed = s.period.open
       }
       if (typeof s.trust_distrust_start === 'undefined') {
-        s.trust_distrust_start = s.period.high
+        s.trust_distrust_start = s.period.open
       }
       if (typeof s.trust_distrust_highest === 'undefined') {
         s.trust_distrust_highest = s.period.high
       }
       if (typeof s.trust_distrust_lowest === 'undefined') {
-        s.trust_distrust_lowest = s.period.high
+        s.trust_distrust_lowest = s.period.low
       }
       if (typeof s.trust_distrust_last_action === 'undefined') {
         s.trust_distrust_last_action = null
@@ -44,12 +44,21 @@ module.exports = function container (get, set, clear) {
       }
 
       // when our current price is lower than what we recorded, overwrite
-      if (s.trust_distrust_lowest > s.period.high) {
-        s.trust_distrust_lowest = s.period.high
+      if (s.period.low < s.trust_distrust_lowest) {
+        s.trust_distrust_lowest = s.period.low
       }
     },
 
     onPeriod: function (s, cb) {
+      let calc_above_sell_min = (s.trust_distrust_start + (s.trust_distrust_start / 100 * s.options.sell_min))
+      let calc_sell_threshold = (s.trust_distrust_highest - (s.trust_distrust_highest / 100 * s.options.sell_threshold))
+      let calc_panic_sell = (s.trust_distrust_highest - (s.trust_distrust_highest / 100 * s.options.sell_threshold_max))
+      let calc_greed = (s.trust_distrust_start_greed + (s.trust_distrust_start_greed / 100 * s.options.greed))
+      let calc_above_buy_min = (s.trust_distrust_lowest + (s.trust_distrust_lowest / 100 * s.options.buy_threshold))
+      if ( s.options.debug){console.log("\nhigh "+s.period.high+ " low " + s.period.low + " open " + s.period.open + " calc_above_sell_min " + calc_above_sell_min )}
+      if ( s.options.debug){console.log("\ncalc_sell_threshold "+ calc_sell_threshold + " calc_panic_sell " + calc_panic_sell + " calc_greed " + calc_greed + " calc_above_buy_min " + calc_above_buy_min )}
+      if ( s.options.debug){console.log("\ntrust_distrust_start "+ s.trust_distrust_start + " trust_distrust_highest " + s.trust_distrust_highest + " trust_distrust_lowest " + s.trust_distrust_lowest )}
+
       if (s.greedy) {
         s.signal = s.trust_distrust_last_action
         return cb()
@@ -57,38 +66,38 @@ module.exports = function container (get, set, clear) {
 
       // sell logic
       if (s.trust_distrust_last_action !== 'sell') {
-        if ( s.period.high > (s.trust_distrust_start + (s.trust_distrust_start / 100 * s.options.sell_min))) { // we are above minimum we want to sell for, or going so low we should "panic sell"
-          if (s.period.high < (s.trust_distrust_highest - (s.trust_distrust_highest / 100 * s.options.sell_threshold))) { // we lost sell_threshold from highest point
+        if ( s.period.high > calc_above_sell_min) { // we are above minimum we want to sell for, or going so low we should "panic sell"
+          if (s.period.high < calc_sell_threshold) { // we lost sell_threshold from highest point
             s.signal = 'sell'
 
             s.trust_distrust_last_action = 'sell'
-            s.trust_distrust_start = s.period.high
+            s.trust_distrust_start = s.period.open
             s.trust_distrust_highest = s.period.high
-            s.trust_distrust_lowest = s.period.high
+            s.trust_distrust_lowest = s.period.low
 
             return cb()
           }
         }
 
-        if (s.options.sell_threshold_max > 0 && s.period.high < (s.trust_distrust_highest - (s.trust_distrust_highest / 100 * s.options.sell_threshold_max))) { // we panic sell
+        if (s.options.sell_threshold_max > 0 && s.period.high < calc_panic_sell) { // we panic sell
           s.signal = 'sell'
 
           s.trust_distrust_last_action = 'sell'
-          s.trust_distrust_start = s.period.high
+          s.trust_distrust_start = s.period.open
           s.trust_distrust_highest = s.period.high
-          s.trust_distrust_lowest = s.period.high
+          s.trust_distrust_lowest = s.period.low
 
           return cb()
         }
       }
 
-      if (s.options.greed > 0 && s.period.high > (s.trust_distrust_start_greed + (s.trust_distrust_start_greed / 100 * s.options.greed))) { // we are not greedy, sell if this profit is reached
+      if (s.options.greed > 0 && s.period.high > calc_greed) { // we are not greedy, sell if this profit is reached
         s.signal = 'sell'
 
         s.trust_distrust_last_action = 'sell'
-        s.trust_distrust_start = s.period.high
+        s.trust_distrust_start = s.period.open
         s.trust_distrust_highest = s.period.high
-        s.trust_distrust_lowest = s.period.high
+        s.trust_distrust_lowest = s.period.low
         s.greedy = true
 
         return cb()
@@ -96,7 +105,7 @@ module.exports = function container (get, set, clear) {
 
       // buy logic
       if (s.trust_distrust_last_action !== 'buy') {
-        if(s.period.high < s.trust_distrust_start && s.period.high > (s.trust_distrust_lowest + (s.trust_distrust_lowest / 100 * s.options.buy_threshold))) { // we grew above buy threshold from lowest point
+        if(s.period.high > s.trust_distrust_start && s.period.high > calc_above_buy_min) { // we grew above buy threshold from lowest point
           if (s.options.buy_threshold_max > 0 && s.trust_distrust_buy_threshold_max < s.options.buy_threshold_max) {
             s.trust_distrust_buy_threshold_max++
             return cb()
@@ -105,13 +114,14 @@ module.exports = function container (get, set, clear) {
           s.signal = 'buy'
 
           s.trust_distrust_last_action = 'buy'
-          s.trust_distrust_start = s.period.high
+          s.trust_distrust_start = s.period.open
           s.trust_distrust_highest = s.period.high
-          s.trust_distrust_lowest = s.period.high
+          s.trust_distrust_lowest = s.period.low
 
           return cb()
         }
       }
+
 
       // repeat last signal
       if (s.signal === null) {
@@ -126,11 +136,11 @@ module.exports = function container (get, set, clear) {
       if (s.period.high > s.trust_distrust_start) {
         color = 'green'
       }
-      else if (s.period.high < s.trust_distrust_lowest) {
+      else if (s.period.high < s.trust_distrust_start) {
         color = 'red'
       }
       cols.push(z(8, n(s.period.high).format('0.0000'), ' ')[color])
-      cols.push(z(8, n(s.trust_distrust_start).format('0.0000'), ' ').grey)
+      cols.push(z(8, n(s.trust_distrust_start).format('0.0000'), ' ').green)
       return cols
     }
   }
