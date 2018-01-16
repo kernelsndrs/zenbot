@@ -271,6 +271,7 @@ zenbot trade --help
     --max_slippage_pct <pct>        avoid selling at a slippage pct above this float
     --rsi_periods <periods>         number of periods to calculate RSI at
     --poll_trades <ms>              poll new trades at this interval in ms
+    --currency_increment <amount>   Currency increment, if different than the asset increment; e.g. 0.000001
     --disable_stats                 disable printing order stats
     --reset_profit                  start new profit calculation from 0
     --debug                         output detailed debug info
@@ -743,8 +744,8 @@ Thanks!
 
 ### License: MIT
 
-- Copyright (C) 2017 Carlos Rodriguez
-- Copyright (C) 2017 Terra Eclipse, Inc. (http://www.terraeclipse.com/)
+- Copyright (C) 2018 Carlos Rodriguez
+- Copyright (C) 2018 Terra Eclipse, Inc. (http://www.terraeclipse.com/)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the &quot;Software&quot;), to deal

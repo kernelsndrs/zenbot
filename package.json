@@ -2,11 +2,11 @@
   "name": "zenbot4",
   "version": "4.1.0",
   "description": "Cryptocurrency trading bot",
-  "bugs": "https://github.com/carlos8f/zenbot/issues",
+  "bugs": "https://github.com/deviavir/zenbot/issues",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/carlos8f/zenbot.git"
+    "url": "https://github.com/deviavir/zenbot.git"
   },
   "main": "./index.js",
   "bin": {
@@ -14,7 +14,7 @@
   },
   "scripts": {
     "test": "jasmine test/**/**.test.js",
-    "postinstall": "./post_install.sh"
+    "postinstall": "node post_install.js"
   },
   "dependencies": {
     "@slack/client": "^3.14.0",
@@ -84,7 +84,7 @@
     "sosa_mongo": "^1.0.3",
     "stats-lite": "2.1.0",
     "style-loader": "^0.19.1",
-    "talib": "^1.0.3",
+    "talib": "drorgl/node-talib#b30dd674e5b11822ea93bb253001169f1bc99e15",
     "timebucket": "^0.4.0",
     "trend": "0.3.0",
     "url-loader": "^0.6.2",
@@ -105,6 +105,6 @@
     "yargs": "^10.0.3"
   },
   "engines": {
-    "node": "^8.0.0 || ^9.0.0"
+    "node": "^8.3.0 || ^9.0.0"
   }
 }
