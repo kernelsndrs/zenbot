@@ -10,6 +10,8 @@ var tb = require('timebucket')
   , colors = require('colors')
   , z = require('zero-fill')
   , cliff = require('cliff')
+  , blessed = require('blessed')
+  , contrib = require('blessed-contrib')
 
 module.exports = function container (get, set, clear) {
   var c = get('conf')
@@ -57,6 +59,38 @@ module.exports = function container (get, set, clear) {
             so[k] = cmd[k]
           }
         })
+
+        // Create a screen object.
+        s.screen = blessed.screen({
+          smartCSR: true,
+          // log: process.env.HOME + '/blessed-terminal.log',
+          fullUnicode: true,
+          dockBorders: true,
+          ignoreDockContrast: true
+        });
+
+        s.screen.title = 'Zenbot';
+        s.grid = new contrib.grid({rows: 12, cols: 12, screen: s.screen})
+        s.error_log = s.grid.set(0, 0, 1, 12, contrib.log, {
+          label: 'Errors',
+        })
+        s.info_log = s.grid.set(1, 0, 5, 12, contrib.log, {
+          label: 'Info',
+        })
+        s.recent_periods = s.grid.set(6, 0, 6, 12, contrib.log, {
+          scrollable: true,
+        })
+
+        s.screen.render()
+        var _log = console.log;
+        console.log = function(message){
+          s.info_log.log(message)
+        };
+        var _error = console.error;
+        console.error = function(message) {
+          s.error_log.log(message)
+        }
+
         so.currency_increment = cmd.currency_increment
         so.keep_lookback_periods = cmd.keep_lookback_periods
         so.debug = cmd.debug
@@ -363,15 +397,25 @@ module.exports = function container (get, set, clear) {
         var my_trades = get('db.my_trades')
         var periods = get('db.periods')
 
-        console.log('fetching pre-roll data:')
+        console.log('Starting Backfill:')
         var zenbot_cmd = process.platform === 'win32' ? 'zenbot.bat' : 'zenbot.sh'; // Use 'win32' for 64 bit windows too
         var backfiller = spawn(path.resolve(__dirname, '..', zenbot_cmd), ['backfill', so.selector.normalized, '--days', days])
-        backfiller.stdout.pipe(process.stdout)
-        backfiller.stderr.pipe(process.stderr)
+        backfiller.stdout.on('data', function(data){
+          if(data.toString() === '.') data = "gathering backfill.."
+          console.log(data.toString())
+          // s.screen.render()
+        })
+        backfiller.stderr.on('data', function(data){
+          console.error("err: " + data.toString())
+        //   s.screen.render()
+        })
+        // backfiller.stdout.pipe(process.stdout)
+        // backfiller.stderr.pipe(process.stderr)
         backfiller.on('exit', function (code) {
           if (code) {
             process.exit(code)
           }
+          console.log('Backfill complete ')
           function getNext () {
             var opts = {
               query: {

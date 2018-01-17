@@ -717,6 +717,13 @@ Or to sell 10% of your BTC,
 ```
 zenbot sell gdax.BTC-USD --pct=10
 ```
+## Command Line GUI
+
+### Windows
+1. Download, open and install the FreeMono font.
+2. Follow these instructions in order to to configure FreeMono in the windows terminal.
+3. In the command line type: "set TERM=windows-ansi".
+4. Clone & Run the blessed-contrib project according the regular guidelines (or run any other dashboard that you need)
 
 ## Chat with other Zenbot users
 
