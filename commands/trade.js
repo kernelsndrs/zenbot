@@ -161,79 +161,79 @@ module.exports = function container (get, set, clear) {
 
           // s.screen.key([''], function(ch, key) {
           // });
-          s.screen.key(['C-e'], function(ch, key) {
-            console.error({error: " object error"})
-          });
-          s.screen.key(['C-l'], function(ch, key) {
+          // s.screen.key(['C-e'], function(ch, key) {
+          //   console.error({error: " object error"})
+          // });
+          s.screen.key(['C-s'], function(ch, key) {
             s.screen.line_chart.toggle()
           });
           s.screen.key(['l'], function(ch, key) {
             listKeys()
           });
           s.screen.key(['b'], function(ch, key) {
+            s.info_log.log('manual'.grey + ' limit ' + 'BUY'.green + ' command executed'.grey)
             engine.executeSignal('buy')
-            s.info_log.log('\nmanual'.grey + ' limit ' + 'BUY'.green + ' command executed'.grey)
           });
-          s.screen.key(['B'], function(ch, key) {
+          s.screen.key(['S-b'], function(ch, key) {
             engine.executeSignal('buy', null, null, false, true)
-            console.log('\nmanual'.grey + ' market ' + 'BUY'.green + ' command executed'.grey)
+            s.info_log.log('manual'.grey + ' market ' + 'BUY'.green + ' command executed'.grey)
           });
           s.screen.key(['s'], function(ch, key) {
             engine.executeSignal('sell')
-            console.log('\nmanual'.grey + ' limit ' + 'SELL'.red + ' command executed'.grey)
+            s.info_log.log('manual'.grey + ' limit ' + 'SELL'.red + ' command executed'.grey)
           });
-          s.screen.key(['S'], function(ch, key) {
+          s.screen.key(['S-s'], function(ch, key) {
             engine.executeSignal('sell', null, null, false, true)
-            console.log('\nmanual'.grey + ' market ' + 'SELL'.red + ' command executed'.grey)
+            s.info_log.log('manual'.grey + ' market ' + 'SELL'.red + ' command executed'.grey)
           });
-          s.screen.key(['c', 'C'], function(ch, key) {
+          s.screen.key(['c', 'S-c'], function(ch, key) {
             delete s.buy_order
             delete s.sell_order
-            console.log('\nmanual'.grey + ' order cancel' + ' command executed'.grey)
+            s.info_log.log('manual'.grey + ' order cancel' + ' command executed'.grey)
           });
           if(so.mode === 'live'){
             s.screen.key(['m'], function(ch, key) {
               so.manual = !so.manual
-              console.log('\nMANUAL trade in LIVE mode: ' + (so.manual ? 'ON'.green.inverse : 'OFF'.red.inverse))
+              s.info_log.log('MANUAL trade in LIVE mode: ' + (so.manual ? 'ON'.green.inverse : 'OFF'.red.inverse))
             });
           }
-          s.screen.key(['T'], function(ch, key) {
+          s.screen.key(['S-t'], function(ch, key) {
             so.order_type = 'taker'
-            console.log('\n' + 'Taker fees activated'.bgRed)
+            s.info_log.log('Taker fees activated'.bgRed)
           });
-          s.screen.key(['M'], function(ch, key) {
+          s.screen.key(['S-m'], function(ch, key) {
             so.order_type = 'maker'
-            console.log('\n' + 'Maker fees activated'.black.bgGreen)
+            s.info_log.log('Maker fees activated'.black.bgGreen)
           });
           s.screen.key(['o'], function(ch, key) {
             listOptions()
           });
-          s.screen.key(['O'], function(ch, key) {
-            console.log('\n' + cliff.inspect(so))
+          s.screen.key(['S-o'], function(ch, key) {
+            s.info_log.log(cliff.inspect(so))
           });
-          s.screen.key(['P'], function(ch, key) {
-            console.log('\nWriting statistics...'.grey)
+          s.screen.key(['S-p'], function(ch, key) {
+            s.info_log.log('Writing statistics...'.grey)
             printTrade(false)
           });
-          s.screen.key(['X'], function(ch, key) {
-            console.log('\nExiting... ' + '\nWriting statistics...'.grey)
+          s.screen.key(['S-x'], function(ch, key) {
+            s.info_log.log('Exiting... ' + 'Writing statistics...'.grey)
             printTrade(true)
           });
           s.screen.key(['d'], function(ch, key) {
-            console.log('\nDumping statistics...'.grey)
+            s.info_log.log('Dumping statistics...'.grey)
             printTrade(false, true)
           })
-          s.screen.key(['D'], function(ch, key) {
-            console.log('\nDumping statistics...'.grey)
+          s.screen.key(['S-d'], function(ch, key) {
+            s.info_log.log('Dumping statistics...'.grey)
             toggleStats()
           });
-          s.screen.key(['L'], function(ch, key) {
+          s.screen.key(['S-l'], function(ch, key) {
             so.debug = !so.debug
-            console.log('\nDEBUG mode: ' + (so.debug ? 'ON'.green.inverse : 'OFF'.red.inverse))
+            s.info_log.log('DEBUG mode: ' + (so.debug ? 'ON'.green.inverse : 'OFF'.red.inverse))
           });
           s.screen.key(['C-c'], function(ch, key) {
             // @todo: cancel open orders before exit
-            console.log()
+            s.info_log.log("Exiting")
             process.exit()
           });
         }
