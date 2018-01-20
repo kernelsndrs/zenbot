@@ -1,19 +1,41 @@
-var glob = require('glob')
-  , path = require('path')
+let glob = require('glob')
+  , mongoDB = require('mongodb')
 
 module.exports = function (cb) {
-  var zenbot = require('./')()
-  var c = getConfiguration()
-
-  var defaults = require('./conf-sample')
-  Object.keys(defaults).forEach(function (k) {
-    if (typeof c[k] === 'undefined') {
-      c[k] = defaults[k]
-    }
-  })
+  let zenbot = require('./')()
+  let c = getConfiguration()
+  addDefaultsIfNotInConf(c)
   zenbot.set('@zenbot:conf', c)
+  setupMongo()
+  function setupMongo() {
 
-  function withMongo () {
+    var authStr = '', authMechanism;
+
+    if(c.mongo.username){
+      authStr = encodeURIComponent(c.mongo.username)
+
+      if(c.mongo.password) authStr += ':' + encodeURIComponent(c.mongo.password)
+
+      authStr += '@'
+
+      // authMechanism could be a conf.js parameter to support more mongodb authentication methods
+      authMechanism = 'DEFAULT'
+    }
+
+    var u = 'mongodb://' + authStr + c.mongo.host + ':' + c.mongo.port + '/' + c.mongo.db + '?' + (c.mongo.replicaSet ? '&replicaSet=' + c.mongo.replicaSet : '' ) + (authMechanism ? '&authMechanism=' + authMechanism : '' )
+    mongoDB.MongoClient.connect(u, function (err, db) {
+      if (err) {
+        zenbot.set('zenbot:db.mongo', null)
+        console.error('WARNING: MongoDB Connection Error: ', err)
+        console.error('WARNING: without MongoDB some features (such as backfilling/simulation) may be disabled.')
+        console.error('Attempted authentication string: ' + u);
+        return loadCodemaps()
+      }
+      zenbot.set('zenbot:db.mongo', db)
+      loadCodemaps()
+    })
+  }
+  function loadCodemaps () {
     //searches all directorys in {workingdir}/extensions/ for files called '_codemap.js'
     glob('extensions/**/_codemap.js', {cwd: __dirname, absolute: true}, function (err, results) {
       if (err) return cb(err)
@@ -24,33 +46,15 @@ module.exports = function (cb) {
       cb(null, zenbot)
     })
   }
+  function addDefaultsIfNotInConf(conf){
 
-  var authStr = '', authMechanismStr, authMechanism;
-  
-  if(c.mongo.username){
-    authStr = encodeURIComponent(c.mongo.username)
-    
-    if(c.mongo.password) authStr += ':' + encodeURIComponent(c.mongo.password)
-
-    authStr += '@'  
-      
-    // authMechanism could be a conf.js parameter to support more mongodb authentication methods
-    authMechanism = 'DEFAULT'
+    var defaults = require('./conf-sample')
+    Object.keys(defaults).forEach(function (k) {
+      if (typeof conf[k] === 'undefined') {
+        conf[k] = defaults[k]
+      }
+    })
   }
-  
-  var u = 'mongodb://' + authStr + c.mongo.host + ':' + c.mongo.port + '/' + c.mongo.db + '?' + (c.mongo.replicaSet ? '&replicaSet=' + c.mongo.replicaSet : '' ) + (authMechanism ? '&authMechanism=' + authMechanism : '' )
-  require('mongodb').MongoClient.connect(u, function (err, db) {
-    if (err) {
-      zenbot.set('zenbot:db.mongo', null)
-      console.error('WARNING: MongoDB Connection Error: ', err)
-      console.error('WARNING: without MongoDB some features (such as backfilling/simulation) may be disabled.')
-      console.error('Attempted authentication string: ' + u);
-      return withMongo()
-    }
-    zenbot.set('zenbot:db.mongo', db)
-    withMongo()
-  })
-
   function getConfiguration() {
     var conf = undefined
 
@@ -66,6 +70,7 @@ module.exports = function (cb) {
         try {
           conf = require(_allArgs[0])
         } catch (ee) {
+          //command line conf not found
           console.log('Fall back to conf.js, ' + ee)
           conf = require('./conf')
         }
@@ -74,6 +79,7 @@ module.exports = function (cb) {
       }
     }
     catch (e) {
+      // conf.js not found
       console.log('Fall back to sample-conf.js, ' + e)
       conf = {}
     }
