@@ -1,7 +1,7 @@
-var codemap = require('codemap')
+let codemap = require('codemap')
 
 module.exports = function () {
-  var rootMap = {
+  let rootMap = {
     _maps: [require('./_codemap')],
 
     'get': function container (get, set) {
@@ -12,14 +12,14 @@ module.exports = function () {
     },
     'use': function container (get, set) {
       return function use () {
-        ;[].slice.call(arguments).forEach(function (arg) {
+        [].slice.call(arguments).forEach(function (arg) {
           instance.parseMap(arg)
         })
         instance.validatePathCache()
       }
     }
   }
-  var instance = codemap(rootMap)
+  let instance = codemap(rootMap)
   return instance.export()
 }
 
