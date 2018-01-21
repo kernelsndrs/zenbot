@@ -1,7 +1,6 @@
 var tb = require('timebucket')
   , minimist = require('minimist')
   , n = require('numbro')
-  , fs = require('fs')
   , path = require('path')
   , spawn = require('child_process').spawn
   , spawnSync = require('child_process').spawnSync
@@ -171,19 +170,16 @@ module.exports = function container (get, set, clear) {
             s.info_log.log(cliff.inspect(so))
           })
           s.screen.key(['S-p'], function(ch, key) {
-            s.info_log.log('Writing statistics...'.grey)
-            printTrade(false)
+            engine.printTrade(false)
           })
           s.screen.key(['S-x'], function(ch, key) {
             s.info_log.log('Exiting... ' + 'Writing statistics...'.grey)
-            printTrade(true)
+            engine.printTrade(true)
           })
           s.screen.key(['d'], function(ch, key) {
-            s.info_log.log('Dumping statistics...'.grey)
-            printTrade(false, true)
+            engine.printTrade(false, true)
           })
           s.screen.key(['S-d'], function(ch, key) {
-            s.info_log.log('Dumping statistics...'.grey)
             toggleStats()
           })
           s.screen.key(['S-l'], function(ch, key) {
@@ -223,104 +219,6 @@ module.exports = function container (get, set, clear) {
         }              
 
         //Stats Functions
-        function printTrade (quit, dump) {
-          console.log()
-          var output_lines = []
-          var tmp_balance = n(s.balance.currency).add(n(s.period.close).multiply(s.balance.asset)).format('0.00000000')
-          if (quit) {
-            if (s.my_trades.length) {
-              s.my_trades.push({
-                price: s.period.close,
-                size: s.balance.asset,
-                type: 'sell',
-                time: s.period.time
-              })
-            }
-            s.balance.currency = tmp_balance
-            s.balance.asset = 0
-            s.lookback.unshift(s.period)
-          }
-          var profit = s.start_capital ? n(tmp_balance).subtract(s.start_capital).divide(s.start_capital) : n(0)
-          output_lines.push('last balance: ' + n(tmp_balance).format('0.00000000').yellow + ' (' + profit.format('0.00%') + ')')
-          var buy_hold = s.start_price ? n(s.period.close).multiply(n(s.start_capital).divide(s.start_price)) : n(tmp_balance)
-          var buy_hold_profit = s.start_capital ? n(buy_hold).subtract(s.start_capital).divide(s.start_capital) : n(0)
-          output_lines.push('buy hold: ' + buy_hold.format('0.00000000').yellow + ' (' + n(buy_hold_profit).format('0.00%') + ')')
-          output_lines.push('vs. buy hold: ' + n(tmp_balance).subtract(buy_hold).divide(buy_hold).format('0.00%').yellow)
-          output_lines.push(s.my_trades.length + ' trades over ' + s.day_count + ' days (avg ' + n(s.my_trades.length / s.day_count).format('0.00') + ' trades/day)')
-          // Build stats for UI
-          s.stats = {
-            profit: profit.format('0.00%'),
-            tmp_balance: n(tmp_balance).format('0.00000000'),
-            buy_hold: buy_hold.format('0.00000000'),
-            buy_hold_profit: n(buy_hold_profit).format('0.00%'),
-            day_count: s.day_count,
-            trade_per_day: n(s.my_trades.length / s.day_count).format('0.00')
-          }
-
-          var last_buy
-          var losses = 0, sells = 0
-          s.my_trades.forEach(function (trade) {
-            if (trade.type === 'buy') {
-              last_buy = trade.price
-            }
-            else {
-              if (last_buy && trade.price < last_buy) {
-                losses++
-              }
-              sells++
-            }
-          })
-          if (s.my_trades.length && sells > 0) {
-            output_lines.push('win/loss: ' + (sells - losses) + '/' + losses)
-            output_lines.push('error rate: ' + (sells ? n(losses).divide(sells).format('0.00%') : '0.00%').yellow)
-
-            //for API
-            s.stats.win = (sells - losses)
-            s.stats.losses = losses
-            s.stats.error_rate = (sells ? n(losses).divide(sells).format('0.00%') : '0.00%')
-          }
-          output_lines.forEach(function (line) {
-            console.log(line)
-          })
-          if (quit || dump) {
-            var html_output = output_lines.map(function (line) {
-              return colors.stripColors(line)
-            }).join('\n')
-            var data = s.lookback.slice(0, s.lookback.length - so.min_periods).map(function (period) {
-              var data = {};
-              var keys = Object.keys(period);
-              for(i = 0;i < keys.length;i++){
-                data[keys[i]] = period[keys[i]];
-              }
-              return data;
-            })
-            var code = 'var data = ' + JSON.stringify(data) + ';\n'
-            code += 'var trades = ' + JSON.stringify(s.my_trades) + ';\n'
-            var tpl = fs.readFileSync(path.resolve(__dirname, '..', 'templates', 'sim_result.html.tpl'), {encoding: 'utf8'})
-            var out = tpl
-              .replace('{{code}}', code)
-              .replace('{{trend_ema_period}}', so.trend_ema || 36)
-              .replace('{{output}}', html_output)
-              .replace(/\{\{symbol\}\}/g,  so.selector.normalized + ' - zenbot ' + require('../package.json').version)
-            if (so.filename !== 'none') {
-              var out_target
-              var out_target_prefix = so.paper ? 'simulations/paper_result_' : 'stats/trade_result_'
-              if(dump){
-                var dt = new Date().toISOString();
-                
-                //ymd
-                var today = dt.slice(2, 4) + dt.slice(5, 7) + dt.slice(8, 10);
-                out_target = so.filename || out_target_prefix + so.selector.normalized +'_' + today + '_UTC.html'
-              fs.writeFileSync(out_target, out)
-              }else
-                out_target = so.filename || out_target_prefix + so.selector.normalized +'_' + new Date().toISOString().replace(/T/, '_').replace(/\..+/, '').replace(/-/g, '').replace(/:/g, '').replace(/20/, '') + '_UTC.html'
-              
-              fs.writeFileSync(out_target, out)
-              console.log('\nwrote'.grey, out_target)
-            }
-            if(quit) process.exit(0)
-          }
-        }
         function toggleStats(){
           s.shouldSaveStats = !s.shouldSaveStats;
           if(s.shouldSaveStats)
@@ -330,7 +228,7 @@ module.exports = function container (get, set, clear) {
         }
         function saveStats () {
           if(!s.shouldSaveStats) return;
-          printTrade(false, true)
+          engine.printTrade(false, true)
         }
         function saveStatsLoop(){
           saveStats()
