@@ -91,47 +91,6 @@ module.exports = function container (get, set, clear) {
         engine.createTextUI()
 
 
-        function displayLinesArrPopup(linesArr) {
-
-          let popup_box = blessed.box({
-            top: 'center',
-            left: 'center',
-            width: '50%',
-            height: '50%',
-            tags: true,
-            border: {
-              type: 'line'
-            },
-            style: {
-              fg: 'white',
-              bg: 'magenta',
-              border: {
-                fg: '#f0f0f0'
-              },
-              hover: {
-                bg: 'green'
-              }
-            },
-            scrollable: true,
-            alwaysScroll: true,
-            scrollbar: {
-              ch: ' ',
-              inverse: true
-            }
-          });
-          s.screen.append(popup_box)
-          popup_box.pushLine(linesArr)
-          popup_box.on('click', function(data) {
-            popup_box.destroy()
-            s.screen.render()
-          })
-          popup_box.key('q', function(ch, key) {
-            popup_box.destroy()
-            s.screen.render()
-          })
-          popup_box.focus()
-          s.screen.render()
-        }
         function listKeys() {
           const keyMap = new Map()
           keyMap.set('b', 'limit'.grey + ' BUY'.green)
@@ -155,7 +114,7 @@ module.exports = function container (get, set, clear) {
           keyMap.forEach((value, key) => {
             lines.push(' ' + key + ' - ' + value+'\n')
           })
-          displayLinesArrPopup(lines)
+          engine.displayPopup(lines)
         }
         function setupKeyboardCommands(){
 
@@ -259,7 +218,7 @@ module.exports = function container (get, set, clear) {
             z(20, 'TRAILING STOP %'.grey, ' ') + '\t' + so.profit_stop_enable_pct + '%',
             z(20, 'TRAILING DISTANCE %'.grey, ' ') + '\t' + so.profit_stop_pct + '%'
           ].join('\n')
-          displayLinesArrPopup(text)
+          engine.displayPopup(text)
 
         }              
 
