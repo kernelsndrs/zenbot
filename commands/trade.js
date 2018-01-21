@@ -130,9 +130,9 @@ module.exports = function container (get, set, clear) {
           // s.screen.key(['C-e'], function(ch, key) {
           //   console.error({error: " object error"})
           // })
-          s.screen.key(['C-s'], function(ch, key) {
-            s.screen.line_chart.toggle()
-          })
+          // s.screen.key(['C-s'], function(ch, key) {
+          //   s.screen.line_chart.toggle()
+          // })
           s.screen.key(['l'], function(ch, key) {
             listKeys()
           })
