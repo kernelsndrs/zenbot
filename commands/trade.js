@@ -314,82 +314,86 @@ module.exports = function container (get, set, clear) {
 
             })
         }
+``
+
         function continueAfterBackfill() {
-          console.log('Backfill complete ')
-          function getNext () {
-            var opts = {
-              query: {
-                selector: so.selector.normalized
-              },
-              sort: {time: 1},
-              limit: 1000
-            }
-            if (db_cursor) {
-              opts.query.time = {$gt: db_cursor}
-            }
-            else {
-              trade_cursor = s.exchange.getCursor(query_start)
-              opts.query.time = {$gte: query_start}
-            }
-            get('db.trades').select(opts, function (err, trades) {
-              if (err) throw err
-              if (!trades.length) {
-                var head = '------------------------------------------ INITIALIZE  OUTPUT ------------------------------------------';
-                console.log(head)
-                get('lib.output').initializeOutput(s)
-                setupKeyboardCommands()
-                var minuses = Math.floor((head.length - so.mode.length - 19) / 2)
-                console.log('-'.repeat(minuses) + ' STARTING ' + so.mode.toUpperCase() + ' TRADING ' + '-'.repeat(minuses + (minuses % 2 == 0 ? 0 : 1)))
-                if (so.mode === 'paper') {
-                  console.log('!!! Paper mode enabled. No real trades are performed until you remove --paper from the startup command.')
+          s.info_log.log('Backfill complete ')
+          engine.writeHeader()
+          refreshData()
+        }
+        function refreshData () {
+          let opts = {
+            query: {
+              selector: so.selector.normalized
+            },
+            sort: {time: 1},
+            limit: 1000
+          }
+          if (db_cursor) {
+            opts.query.time = {$gt: db_cursor}
+          }
+          else {
+            trade_cursor = s.exchange.getCursor(query_start)
+            opts.query.time = {$gte: query_start}
+          }
+          //select all trades
+          get('db.trades').select(opts, function (err, trades) {
+            if (err) throw err
+            //no trades found run engine.update and rerun function
+            if (!trades.length) {
+              s.info_log.log('INITIALIZING  OUTPUT')
+              get('lib.output').initializeOutput(s)
+              s.info_log.log('TURNING KNOBS AND LEVERS')
+              s.info_log.log('STARTING ' + so.mode.toUpperCase() + ' TRADING ' + 'ENGINE')
+              s.info_log.log('GREASING MONEY PRESS')
+              if (so.mode === 'paper') {
+                s.error_log.log('!!! Paper mode enabled. No real trades are performed until you remove --paper from the startup command.')
+              }
+              s.info_log.log('Press ' + ' l '.inverse + ' to list available commands.')
+              engine.syncBalance(function (err) {
+                if (err) {
+                  if (err.desc) console.error(err.desc)
+                  if (err.body) console.error(err.body)
+                  throw err
                 }
-                console.log('Press ' + ' l '.inverse + ' to list available commands.')
-                engine.syncBalance(function (err) {
-                  if (err) {
-                    if (err.desc) console.error(err.desc)
-                    if (err.body) console.error(err.body)
-                    throw err
-                  }
-                  session = {
-                    id: crypto.randomBytes(4).toString('hex'),
-                    selector: so.selector.normalized,
-                    started: new Date().getTime(),
-                    mode: so.mode,
-                    options: so
-                  }
-                  sessions.select({query: {selector: so.selector.normalized}, limit: 1, sort: {started: -1}}, function (err, prev_sessions) {
-                    if (err) throw err
-                    var prev_session = prev_sessions[0]
-                    if (prev_session && !cmd.reset_profit) {
-                      if (prev_session.orig_capital && prev_session.orig_price && ((so.mode === 'paper' && !common_opts.currency_capital && !common_opts.asset_capital) || (so.mode === 'live' && prev_session.balance.asset == s.balance.asset && prev_session.balance.currency == s.balance.currency))) {
-                        s.orig_capital = session.orig_capital = prev_session.orig_capital
-                        s.orig_price = session.orig_price = prev_session.orig_price
-                        if (so.mode === 'paper') {
-                          s.balance = prev_session.balance
-                        }
+                session = {
+                  id: crypto.randomBytes(4).toString('hex'),
+                  selector: so.selector.normalized,
+                  started: new Date().getTime(),
+                  mode: so.mode,
+                  options: so
+                }
+                sessions.select({query: {selector: so.selector.normalized}, limit: 1, sort: {started: -1}}, function (err, prev_sessions) {
+                  if (err) throw err
+                  let prev_session = prev_sessions[0]
+                  if (prev_session && !cmd.reset_profit) {
+                    if (prev_session.orig_capital && prev_session.orig_price && ((so.mode === 'paper' && !common_opts.currency_capital && !common_opts.asset_capital) || (so.mode === 'live' && prev_session.balance.asset == s.balance.asset && prev_session.balance.currency == s.balance.currency))) {
+                      s.orig_capital = session.orig_capital = prev_session.orig_capital
+                      s.orig_price = session.orig_price = prev_session.orig_price
+                      if (so.mode === 'paper') {
+                        s.balance = prev_session.balance
                       }
                     }
-                    if(lookback_size = s.lookback.length > so.keep_lookback_periods){
-                      s.lookback.splice(-1,1)
-                    }
+                  }
+                  if(lookback_size = s.lookback.length > so.keep_lookback_periods){
+                    s.lookback.splice(-1,1)
+                  }
 
-                    forwardScan()
-                    setInterval(forwardScan, so.poll_trades)
-                  })
+                  forwardScan()
+                  setInterval(forwardScan, so.poll_trades)
                 })
-                return
-              }
+              })
+            }else {
               engine.update(trades, true, function (err) {
                 if (err) throw err
                 db_cursor = trades[trades.length - 1].time
                 trade_cursor = exchange.getCursor(trades[trades.length - 1])
-                setImmediate(getNext)
+                setImmediate(refreshData)
               })
-            })
-          }
-          engine.writeHeader()
-          getNext()
+            }
+          })
         }
+
         function forwardScan () {
           function saveSession () {
             engine.syncBalance(function (err) {
@@ -398,10 +402,10 @@ module.exports = function container (get, set, clear) {
                 throw new Error('Error during syncing balance. Please check your API-Key')
               }
               if (err) {
-                console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error syncing balance')
-                if (err.desc) console.error(err.desc)
-                if (err.body) console.error(err.body)
-                console.error(err)
+                s.error_log.log(moment().format('YYYY-MM-DD HH:mm:ss') + ' - error syncing balance')
+                if (err.desc) s.error_log.log(err.desc)
+                if (err.body) s.error_log.log(err.body)
+                s.error_log.log(err)
               }
               session.updated = new Date().getTime()
               session.balance = s.balance
@@ -412,8 +416,8 @@ module.exports = function container (get, set, clear) {
               if (!session.orig_price) session.orig_price = s.start_price
               if (s.period) {
                 session.price = s.period.close
-                var d = tb().resize(c.balance_snapshot_period)
-                var b = {
+                let d = tb().resize(c.balance_snapshot_period)
+                let b = {
                   id: so.selector.normalized + '-' + d.toString(),
                   selector: so.selector.normalized,
                   time: d.toMilliseconds(),
@@ -431,8 +435,8 @@ module.exports = function container (get, set, clear) {
                 if (so.mode === 'live') {
                   balances.save(b, function (err) {
                     if (err) {
-                      console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving balance')
-                      console.error(err)
+                      s.error_log.log(moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving balance')
+                      s.error_log.log(err)
                     }
                   })
                 }
@@ -446,37 +450,35 @@ module.exports = function container (get, set, clear) {
               }
               sessions.save(session, function (err) {
                 if (err) {
-                  console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving session')
-                  console.error(err)
+                  s.error_log.log(moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving session')
+                  s.error_log.log(err)
                 }
                 if (s.period) {
                   engine.writeReport(true)
                 } else {
-                  readline.clearLine(process.stdout)
-                  readline.cursorTo(process.stdout, 0)
-                  console.log('Waiting on first live trade to display reports, could be a few minutes ...')
+                  s.info_log.log('Waiting on first live trade to display reports, could be a few minutes ...')
                 }
               })
             })
           }
-          var opts = {product_id: so.selector.product_id, from: trade_cursor}
+          let opts = {product_id: so.selector.product_id, from: trade_cursor}
           exchange.getTrades(opts, function (err, trades) {
             if (err) {
               if (err.code === 'ETIMEDOUT' || err.code === 'ENOTFOUND' || err.code === 'ECONNRESET') {
                 if (prev_timeout) {
-                  console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - getTrades request timed out. retrying...')
+                  s.error_log.log(moment().format('YYYY-MM-DD HH:mm:ss') + ' - getTrades request timed out. retrying...')
                 }
                 prev_timeout = true
               }
               else if (err.code === 'HTTP_STATUS') {
                 if (prev_timeout) {
-                  console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - getTrades request failed: ' + err.message + '. retrying...')
+                  s.error_log.log(moment().format('YYYY-MM-DD HH:mm:ss') + ' - getTrades request failed: ' + err.message + '. retrying...')
                 }
                 prev_timeout = true
               }
               else {
-                console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - getTrades request failed. retrying...')
-                console.error(err)
+                s.error_log.log(moment().format('YYYY-MM-DD HH:mm:ss') + ' - getTrades request failed. retrying...')
+                s.error_log.log(err)
               }
               return
             }
@@ -488,19 +490,19 @@ module.exports = function container (get, set, clear) {
                 return 0
               })
               trades.forEach(function (trade) {
-                var this_cursor = exchange.getCursor(trade)
+                let this_cursor = exchange.getCursor(trade)
                 trade_cursor = Math.max(this_cursor, trade_cursor)
                 saveTrade(trade)
               })
               engine.update(trades, function (err) {
                 if (err) {
-                  console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving session')
-                  console.error(err)
+                  s.error_log.log(moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving session')
+                  s.error_log.log(err)
                 }
                 resume_markers.save(marker, function (err) {
                   if (err) {
-                    console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving marker')
-                    console.error(err)
+                    s.error_log.log(moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving marker')
+                    s.error_log.log(err)
                   }
                 })
                 if (s.my_trades.length > my_trades_size) {
@@ -511,8 +513,8 @@ module.exports = function container (get, set, clear) {
                     my_trade.mode = so.mode
                     my_trades.save(my_trade, function (err) {
                       if (err) {
-                        console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving my_trade')
-                        console.error(err)
+                        s.error_log.log(moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving my_trade')
+                        s.error_log.log(err)
                       }
                     })
                   })
@@ -526,8 +528,8 @@ module.exports = function container (get, set, clear) {
                   }
                   periods.save(period, function (err) {
                     if (err) {
-                      console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving my_trade')
-                      console.error(err)
+                      s.error_log.log(moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving my_trade')
+                      s.error_log.log(err)
                     }
                   })
                 }
@@ -558,8 +560,8 @@ module.exports = function container (get, set, clear) {
             trades.save(trade, function (err) {
               // ignore duplicate key errors
               if (err && err.code !== 11000) {
-                console.error('\n' + moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving trade')
-                console.error(err)
+                s.error_log.log(moment().format('YYYY-MM-DD HH:mm:ss') + ' - error saving trade')
+                s.error_log.log(err)
               }
             })
           }
@@ -567,6 +569,7 @@ module.exports = function container (get, set, clear) {
 
 
         engine.createTextUI()
+        setupKeyboardCommands()
         saveStatsLoop()
         backfillData()
       })
