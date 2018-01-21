@@ -7,7 +7,7 @@ module.exports = function container (get, set, clear) {
     description: 'Buy when (short ema > long ema) and sell when (short ema < long ema).',
 
     getOptions: function () {
-      this.option('period', 'period length', String, '1h')
+      this.option('period_length', 'period length', String, '120m')
       this.option('min_periods', 'min. number of history periods', Number, 21)
       this.option('ema_short_period', 'number of periods for the shorter EMA', Number, 10)
       this.option('ema_long_period', 'number of periods for the longer EMA', Number, 21)

@@ -10,8 +10,7 @@ module.exports = function container (get, set, clear) {
     description: 'Calculate a trendline and trade when trend is positive vs negative.',
 
     getOptions: function () {
-      this.option('period', 'period length', String, '30s')
-      this.option('period_length', 'period length', String, '30s')
+      this.option('period_length', 'period length', String, '30m')
       this.option('lastpoints', "Number of trades for short trend average", Number, 100)
       this.option('avgpoints', "Number of trades for long trend average", Number, 1000)
       this.option('lastpoints2', "Number of trades for short trend average", Number, 10)

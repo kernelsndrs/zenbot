@@ -7,8 +7,7 @@ module.exports = function container (get, set, clear) {
     description: 'Buy when (Signal ≤ Lower Bollinger Band) and sell when (Signal ≥ Upper Bollinger Band).',
 
     getOptions: function () {
-      this.option('period', 'period length, same as --period_length', String, '1h')
-      this.option('period_length', 'period length, same as --period', String, '1h')
+      this.option('period_length', 'period length', String, '120m')
       this.option('min_periods', 'min. number of history periods', Number, 52)
       this.option('bollinger_size', 'period size', Number, 20)
       this.option('bollinger_time', 'times of standard deviation between the upper band and the moving averages', Number, 2)
