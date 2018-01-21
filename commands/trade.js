@@ -407,7 +407,7 @@ module.exports = function container (get, set, clear) {
 
         s.info_log.log('Starting Backfill:')
         let zenbot_cmd = process.platform === 'win32' ? 'zenbot.bat' : 'zenbot.sh'; // Use 'win32' for 64 bit windows too
-        let backfiller = spawnSync(path.resolve(__dirname, '..', zenbot_cmd), ['backfill', so.selector.normalized, '--days', days])
+        let backfiller = spawn(path.resolve(__dirname, '..', zenbot_cmd), ['backfill', so.selector.normalized, '--days', days])
         backfiller.stdout.on('data', function(data){
           if(data.toString() === '.') data = "gathering backfill.."
           s.info_log.log(data.toString())
