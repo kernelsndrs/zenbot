@@ -1,4 +1,4 @@
-var tb = require('timebucket')
+let tb = require('timebucket')
   , minimist = require('minimist')
   , n = require('numbro')
   , path = require('path')
@@ -14,7 +14,8 @@ var tb = require('timebucket')
   , contrib = require('blessed-contrib')
 
 module.exports = function container (get, set, clear) {
-  var c = get('conf')
+  let c = get('conf')
+  let collectionService = get('lib.collection-service')(get, set, clear)
   return function (program) {
     program
       .command('trade [selector]')
@@ -246,12 +247,10 @@ module.exports = function container (get, set, clear) {
         let session = null
         let sessions = get('db.sessions')
         let balances = get('db.balances')
-        let trades = get('db.trades')
         let my_trades = get('db.my_trades')
         let periods = get('db.periods')
-        let resume_markers = get('db.resume_markers')
-        get('db.mongo').collection('trades').ensureIndex({selector: 1, time: 1})
-        get('db.mongo').collection('resume_markers').ensureIndex({selector: 1, to: -1})
+        let trades = collectionService.getTrades();
+        let resume_markers = collectionService.getResumeMarkers();
         let marker = {
           id: crypto.randomBytes(4).toString('hex'),
           selector: so.selector.normalized,
