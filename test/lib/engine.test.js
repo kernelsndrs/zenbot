@@ -267,7 +267,7 @@ function createEngine(currency_amount, buy_pct, buy_max_amt, order_type, held_as
 				asset:fake_asset,
 				currency: fake_currency
 			},
-			period: "30m",
+			period_length: "30m",
 			markdown_buy_pct : 2,
 			mode:"live",
 			order_type: order_type,

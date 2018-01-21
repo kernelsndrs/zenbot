@@ -4,6 +4,7 @@ var tb = require('timebucket')
   , fs = require('fs')
   , path = require('path')
   , spawn = require('child_process').spawn
+  , spawnSync = require('child_process').spawnSync
   , moment = require('moment')
   , crypto = require('crypto')
   , readline = require('readline')
@@ -50,175 +51,174 @@ module.exports = function container (get, set, clear) {
       .option('--reset_profit', 'start new profit calculation from 0')
       .option('--debug', 'output detailed debug info')
       .action(function (selector, cmd) {
-        var raw_opts = minimist(process.argv)
-        var s = {options: JSON.parse(JSON.stringify(raw_opts))}
-        var so = s.options
+
+        let common_opts = minimist(process.argv)
+        let s = {options: JSON.parse(JSON.stringify(common_opts))}
+        let so = s.options
         delete so._
         Object.keys(c).forEach(function (k) {
           if (typeof cmd[k] !== 'undefined') {
             so[k] = cmd[k]
           }
         })
-
-        // Create a screen object.
-        s.screen = blessed.screen({
-          smartCSR: true,
-          // log: process.env.HOME + '/blessed-terminal.log',
-          fullUnicode: true,
-          dockBorders: true,
-          ignoreDockContrast: true
-        });
-
-        s.screen.title = 'Zenbot';
-        s.grid = new contrib.grid({rows: 12, cols: 12, screen: s.screen})
-        s.error_log = s.grid.set(0, 0, 1, 12, contrib.log, {
-          label: 'Errors',
-        })
-        s.info_log = s.grid.set(1, 0, 5, 12, contrib.log, {
-          label: 'Info',
-        })
-        s.recent_periods = s.grid.set(6, 0, 6, 12, contrib.log, {
-          label: 'Recent Periods',
-          scrollable: true,
-        })
-        s.line_chart = blessed.box ({
-          screen: s.screen,
-          hidden: true,
-          top: 'center',
-          left: 'center',
-          width: '50%',
-          height: '50%',
-          tags: true,
-          border: {
-            type: 'line'
-          },
-          style: {
-            fg: 'white',
-            bg: 'magenta',
-            border: {
-              fg: '#f0f0f0'
-            },
-            hover: {
-              bg: 'green'
-            }
-          }
-        })
-        s.screen.render()
-        var _log = console.log;
-        console.log = function(message){
-          s.info_log.log(message)
-        };
-        var _error = console.error;
-        console.error = function(message) {
-          if(typeof message === 'object') message = JSON.stringify((message))
-          s.error_log.log(message)
-        }
-
+        //
+        // var _log = console.log;
+        // console.log = function(message){
+        //   s.info_log.log(message)
+        // };
+        // var _error = console.error;
+        // console.error = function(message) {
+        //   if(typeof message === 'object') message = JSON.stringify((message))
+        //   s.error_log.log(message)
+        // }
         so.currency_increment = cmd.currency_increment
         so.keep_lookback_periods = cmd.keep_lookback_periods
         so.debug = cmd.debug
         so.stats = !cmd.disable_stats
+        s.shouldSaveStats = false
         so.mode = so.paper ? 'paper' : 'live'
-        if (cmd.conf) {
-          var overrides = require(path.resolve(process.cwd(), cmd.conf))
-          Object.keys(overrides).forEach(function (k) {
-            so[k] = overrides[k]
-          })
-        }
         so.selector = get('lib.objectify-selector')(selector || c.selector)
-        var exchange = get('exchanges.' + so.selector.exchange_id)
-        if (!exchange) {
+        let order_types = ['maker', 'taker']
+        if(!so.order_type in order_types || !so.order_type) {
+          so.order_type = 'maker'
+        }
+        let exchange = get('exchanges.' + so.selector.exchange_id)
+        if(!exchange) {
           console.error('cannot trade ' + so.selector.normalized + ': exchange not implemented')
           process.exit(1)
         }
-        var engine = get('lib.engine')(s)
+        let engine = get('lib.engine')(s)
+        engine.createTextUI()
 
 
-        const keyMap = new Map()
-        keyMap.set('b', 'limit'.grey + ' BUY'.green)
-        keyMap.set('B', 'market'.grey + ' BUY'.green)
-        keyMap.set('s', 'limit'.grey + ' SELL'.red)
-        keyMap.set('S', 'market'.grey + ' SELL'.red)
-        keyMap.set('c', 'cancel order'.grey)
-        keyMap.set('m', 'toggle MANUAL trade in LIVE mode ON / OFF'.grey)
-        keyMap.set('T', 'switch to \'Taker\' order type'.grey)
-        keyMap.set('M', 'switch to \'Maker\' order type'.grey)
-        keyMap.set('o', 'show current trade options'.grey)
-        keyMap.set('O', 'show current trade options in a dirty view (full list)'.grey)
-        keyMap.set('L', 'toggle DEBUG'.grey)
-        keyMap.set('P', 'print statistical output'.grey)
-        keyMap.set('X', 'exit program with statistical output'.grey)
-        keyMap.set('d', 'dump statistical output to HTML file'.grey)
-        keyMap.set('D', 'toggle automatic HTML dump to file'.grey)
+        function displayLinesArrPopup(linesArr) {
 
-        function listKeys() {
-          console.log('\nAvailable command keys:')
-          keyMap.forEach((value, key) => {
-            console.log(' ' + key + ' - ' + value)
+          let popup_box = blessed.box({
+            top: 'center',
+            left: 'center',
+            width: '50%',
+            height: '50%',
+            tags: true,
+            border: {
+              type: 'line'
+            },
+            style: {
+              fg: 'white',
+              bg: 'magenta',
+              border: {
+                fg: '#f0f0f0'
+              },
+              hover: {
+                bg: 'green'
+              }
+            },
+            scrollable: true,
+            alwaysScroll: true,
+            scrollbar: {
+              ch: ' ',
+              inverse: true
+            }
+          });
+          s.screen.append(popup_box)
+          popup_box.pushLine(linesArr)
+          popup_box.on('click', function(data) {
+            popup_box.destroy()
+            s.screen.render()
           })
+          popup_box.key('q', function(ch, key) {
+            popup_box.destroy()
+            s.screen.render()
+          })
+          popup_box.focus()
+          s.screen.render()
+        }
+        function listKeys() {
+          const keyMap = new Map()
+          keyMap.set('b', 'limit'.grey + ' BUY'.green)
+          keyMap.set('B', 'market'.grey + ' BUY'.green)
+          keyMap.set('s', 'limit'.grey + ' SELL'.red)
+          keyMap.set('S', 'market'.grey + ' SELL'.red)
+          keyMap.set('c', 'cancel order'.grey)
+          keyMap.set('m', 'toggle MANUAL trade in LIVE mode ON / OFF'.grey)
+          keyMap.set('T', 'switch to \'Taker\' order type'.grey)
+          keyMap.set('M', 'switch to \'Maker\' order type'.grey)
+          keyMap.set('o', 'show current trade options'.grey)
+          keyMap.set('O', 'show current trade options in a dirty view (full list)'.grey)
+          keyMap.set('L', 'toggle DEBUG'.grey)
+          keyMap.set('P', 'print statistical output'.grey)
+          keyMap.set('X', 'exit program with statistical output'.grey)
+          keyMap.set('d', 'dump statistical output to HTML file'.grey)
+          keyMap.set('D', 'toggle automatic HTML dump to file'.grey)
+          keyMap.set('q', 'Close current prompt'.grey)
+          let lines = []
+          lines.push('\nAvailable command keys:\n\n')
+          keyMap.forEach((value, key) => {
+            lines.push(' ' + key + ' - ' + value+'\n')
+          })
+          displayLinesArrPopup(lines)
         }
         function setupKeyboardCommands(){
 
           // s.screen.key([''], function(ch, key) {
-          // });
+          // })
           // s.screen.key(['C-e'], function(ch, key) {
           //   console.error({error: " object error"})
-          // });
+          // })
           s.screen.key(['C-s'], function(ch, key) {
             s.screen.line_chart.toggle()
-          });
+          })
           s.screen.key(['l'], function(ch, key) {
             listKeys()
-          });
+          })
           s.screen.key(['b'], function(ch, key) {
             s.info_log.log('manual'.grey + ' limit ' + 'BUY'.green + ' command executed'.grey)
             engine.executeSignal('buy')
-          });
+          })
           s.screen.key(['S-b'], function(ch, key) {
             engine.executeSignal('buy', null, null, false, true)
             s.info_log.log('manual'.grey + ' market ' + 'BUY'.green + ' command executed'.grey)
-          });
+          })
           s.screen.key(['s'], function(ch, key) {
             engine.executeSignal('sell')
             s.info_log.log('manual'.grey + ' limit ' + 'SELL'.red + ' command executed'.grey)
-          });
+          })
           s.screen.key(['S-s'], function(ch, key) {
             engine.executeSignal('sell', null, null, false, true)
             s.info_log.log('manual'.grey + ' market ' + 'SELL'.red + ' command executed'.grey)
-          });
+          })
           s.screen.key(['c', 'S-c'], function(ch, key) {
             delete s.buy_order
             delete s.sell_order
             s.info_log.log('manual'.grey + ' order cancel' + ' command executed'.grey)
-          });
+          })
           if(so.mode === 'live'){
             s.screen.key(['m'], function(ch, key) {
               so.manual = !so.manual
               s.info_log.log('MANUAL trade in LIVE mode: ' + (so.manual ? 'ON'.green.inverse : 'OFF'.red.inverse))
-            });
+            })
           }
           s.screen.key(['S-t'], function(ch, key) {
             so.order_type = 'taker'
             s.info_log.log('Taker fees activated'.bgRed)
-          });
+          })
           s.screen.key(['S-m'], function(ch, key) {
             so.order_type = 'maker'
             s.info_log.log('Maker fees activated'.black.bgGreen)
-          });
+          })
           s.screen.key(['o'], function(ch, key) {
             listOptions()
-          });
+          })
           s.screen.key(['S-o'], function(ch, key) {
             s.info_log.log(cliff.inspect(so))
-          });
+          })
           s.screen.key(['S-p'], function(ch, key) {
             s.info_log.log('Writing statistics...'.grey)
             printTrade(false)
-          });
+          })
           s.screen.key(['S-x'], function(ch, key) {
             s.info_log.log('Exiting... ' + 'Writing statistics...'.grey)
             printTrade(true)
-          });
+          })
           s.screen.key(['d'], function(ch, key) {
             s.info_log.log('Dumping statistics...'.grey)
             printTrade(false, true)
@@ -226,56 +226,44 @@ module.exports = function container (get, set, clear) {
           s.screen.key(['S-d'], function(ch, key) {
             s.info_log.log('Dumping statistics...'.grey)
             toggleStats()
-          });
+          })
           s.screen.key(['S-l'], function(ch, key) {
             so.debug = !so.debug
             s.info_log.log('DEBUG mode: ' + (so.debug ? 'ON'.green.inverse : 'OFF'.red.inverse))
-          });
+          })
           s.screen.key(['C-c'], function(ch, key) {
             // @todo: cancel open orders before exit
             s.info_log.log("Exiting")
             process.exit()
-          });
+          })
         }
-
-
         function listOptions () {
-          console.log()
-          console.log(s.exchange.name.toUpperCase() + ' exchange active trading options:'.grey)
-          console.log()
-          console.log(z(22, 'STRATEGY'.grey, ' ') + '\t' + so.strategy + '\t' + (get('strategies.' + so.strategy).description).grey)
-          console.log('\n')
-          console.log([
-            z(24, (so.mode === 'paper' ? so.mode.toUpperCase() : so.mode.toUpperCase()) + ' MODE'.grey, ' '),
-            z(26, 'PERIOD'.grey, ' '),
-            z(30, 'ORDER TYPE'.grey, ' '),
-            z(28, 'SLIPPAGE'.grey, ' '),
-            z(33, 'EXCHANGE FEES'.grey, ' ')
-          ].join('') + '\n')
-          console.log([
-            z(15, (so.mode === 'paper' ? '      ' : (so.mode === 'live' && (so.manual === false || typeof so.manual === 'undefined')) ? '       ' + 'AUTO'.black.bgRed + '    ' : '       ' + 'MANUAL'.black.bgGreen + '  '), ' '),
-            z(13, so.period_length, ' '),
-            z(29, (so.order_type === 'maker' ? so.order_type.toUpperCase().green : so.order_type.toUpperCase().red), ' '),
-            z(31, (so.mode === 'paper' ? 'avg. '.grey + so.avg_slippage_pct + '%' : 'max '.grey + so.max_slippage_pct + '%'), ' '),
-            z(20, (so.order_type === 'maker' ? so.order_type + ' ' + s.exchange.makerFee : so.order_type + ' ' + s.exchange.takerFee), ' ')
-          ].join('') + '\n')
-          console.log('')
-          console.log([
-            z(19, 'BUY %'.grey, ' '),
-            z(20, 'SELL %'.grey, ' '),
-            z(35, 'TRAILING STOP %'.grey, ' '),
-            z(33, 'TRAILING DISTANCE %'.grey, ' ')
-          ].join('') + '\n')
-          console.log([
-            z(9, so.buy_pct + '%', ' '),
-            z(9, so.sell_pct + '%', ' '),
-            z(20, so.profit_stop_enable_pct + '%', ' '),
-            z(20, so.profit_stop_pct + '%', ' ')
-          ].join('') + '\n')
-          console.log('')
+          text = ''
+          text += (s.exchange.name.toUpperCase() + ' exchange active trading options:'.grey)
+          text += ('\n')
+          text += (z(10, 'STRATEGY'.grey, ' ') + '\t' + so.strategy )
+          text += ('\n')
+          text += (z(10, 'DESC'.grey, ' ') + '\t' + (get('strategies.' + so.strategy).description).grey)
+          text += ('\n')
+          text += [
+            z(10, 'MODE'.grey , ' ') + '\t' +  so.mode.toUpperCase() + (so.mode === 'live' && (so.manual === false || typeof so.manual === 'undefined')) ? '       ' + 'AUTO'.black.bgRed + '    ' : '       ' + 'MANUAL'.black.bgGreen + '  ',
+            z(10, 'PERIOD'.grey, ' ') + '\t' + so.period_length,
+            z(10, 'ORDER TYPE'.grey, ' ') + '\t' + (so.order_type === 'maker' ? so.order_type.toUpperCase().green : so.order_type.toUpperCase().red),
+            z(10, 'SLIPPAGE'.grey, ' ') + '\t' + (so.mode === 'paper' ? 'avg. '.grey + so.avg_slippage_pct + '%' : 'max '.grey + so.max_slippage_pct + '%'),
+            z(10, 'EXCHANGE FEES'.grey, ' ') + '\t' + (so.order_type === 'maker' ? so.order_type + ' ' + s.exchange.makerFee : so.order_type + ' ' + s.exchange.takerFee)
+          ].join('\n')
+          text += ('\n')
+          text += [
+            z(20, 'BUY %'.grey, ' ') + '\t' + so.buy_pct + '%',
+            z(20, 'SELL %'.grey, ' ') + '\t' + so.sell_pct + '%',
+            z(20, 'TRAILING STOP %'.grey, ' ') + '\t' + so.profit_stop_enable_pct + '%',
+            z(20, 'TRAILING DISTANCE %'.grey, ' ') + '\t' + so.profit_stop_pct + '%'
+          ].join('\n')
+          displayLinesArrPopup(text)
+
         }              
 
-        /* Implementing statistical Exit */
+        //Stats Functions
         function printTrade (quit, dump) {
           console.log()
           var output_lines = []
@@ -374,18 +362,17 @@ module.exports = function container (get, set, clear) {
             if(quit) process.exit(0)
           }
         }
-        /* The end of printTrade */
-        
-        /* Implementing statistical status dump every 10 secs */
-        var shouldSaveStats = false;
         function toggleStats(){
-          shouldSaveStats = !shouldSaveStats;
-          if(shouldSaveStats)
-            console.log("Auto stats dump enabled")
+          s.shouldSaveStats = !s.shouldSaveStats;
+          if(s.shouldSaveStats)
+            s.info_log.log("Auto stats dump enabled")
           else
-            console.log("Auto stats dump disabled")
+            s.info_log.log("Auto stats dump disabled")
         }
-        
+        function saveStats () {
+          if(!s.shouldSaveStats) return;
+          printTrade(false, true)
+        }
         function saveStatsLoop(){
           saveStats()
           setTimeout(function () {
@@ -394,128 +381,42 @@ module.exports = function container (get, set, clear) {
         }
         saveStatsLoop()
         
-        function saveStats () {
-          if(!shouldSaveStats) return;
-          
-          var output_lines = []
-          var tmp_balance = n(s.balance.currency).add(n(s.period.close).multiply(s.balance.asset)).format('0.00000000')
-          
-          var profit = s.start_capital ? n(tmp_balance).subtract(s.start_capital).divide(s.start_capital) : n(0)
-          output_lines.push('last balance: ' + n(tmp_balance).format('0.00000000').yellow + ' (' + profit.format('0.00%') + ')')
-          var buy_hold = s.start_price ? n(s.period.close).multiply(n(s.start_capital).divide(s.start_price)) : n(tmp_balance)
-          var buy_hold_profit = s.start_capital ? n(buy_hold).subtract(s.start_capital).divide(s.start_capital) : n(0)
-          output_lines.push('buy hold: ' + buy_hold.format('0.00000000').yellow + ' (' + n(buy_hold_profit).format('0.00%') + ')')
-          output_lines.push('vs. buy hold: ' + n(tmp_balance).subtract(buy_hold).divide(buy_hold).format('0.00%').yellow)
-          output_lines.push(s.my_trades.length + ' trades over ' + s.day_count + ' days (avg ' + n(s.my_trades.length / s.day_count).format('0.00') + ' trades/day)')
-          // Build stats for UI
-          s.stats = {
-            profit: profit.format('0.00%'),
-            tmp_balance: n(tmp_balance).format('0.00000000'),
-            buy_hold: buy_hold.format('0.00000000'),
-            buy_hold_profit: n(buy_hold_profit).format('0.00%'),
-            day_count: s.day_count,
-            trade_per_day: n(s.my_trades.length / s.day_count).format('0.00')
-          }
 
-          var last_buy
-          var losses = 0, sells = 0
-          s.my_trades.forEach(function (trade) {
-            if (trade.type === 'buy') {
-              last_buy = trade.price
-            }
-            else {
-              if (last_buy && trade.price < last_buy) {
-                losses++
-              }
-              sells++
-            }
-          })
-          if (s.my_trades.length && sells > 0) {
-            output_lines.push('win/loss: ' + (sells - losses) + '/' + losses)
-            output_lines.push('error rate: ' + (sells ? n(losses).divide(sells).format('0.00%') : '0.00%').yellow)
 
-            //for API
-            s.stats.win = (sells - losses)
-            s.stats.losses = losses
-            s.stats.error_rate = (sells ? n(losses).divide(sells).format('0.00%') : '0.00%')
-          }
-          
-          var html_output = output_lines.map(function (line) {
-            return colors.stripColors(line)
-          }).join('\n')
-          var data = s.lookback.slice(0, s.lookback.length - so.min_periods).map(function (period) {
-            var data = {};
-            var keys = Object.keys(period);
-            for(i = 0;i < keys.length;i++){
-              data[keys[i]] = period[keys[i]];
-            }
-            return data;
-          })
-          var code = 'var data = ' + JSON.stringify(data) + ';\n'
-          code += 'var trades = ' + JSON.stringify(s.my_trades) + ';\n'
-          var tpl = fs.readFileSync(path.resolve(__dirname, '..', 'templates', 'sim_result.html.tpl'), {encoding: 'utf8'})
-          var out = tpl
-            .replace('{{code}}', code)
-            .replace('{{trend_ema_period}}', so.trend_ema || 36)
-            .replace('{{output}}', html_output)
-            .replace(/\{\{symbol\}\}/g,  so.selector.normalized + ' - zenbot ' + require('../package.json').version)
-          if (so.filename !== 'none') {
-            var out_target
-            var dt = new Date().toISOString();
-            
-            //ymd
-            var today = dt.slice(2, 4) + dt.slice(5, 7) + dt.slice(8, 10);
-            out_target = so.filename || 'simulations/trade_result_' + so.selector.normalized +'_' + today + '_UTC.html'
-
-            fs.writeFileSync(out_target, out)
-            //console.log('\nwrote'.grey, out_target)
-          }
-
-        }
-        /* The end of printTrade */
-
-        var order_types = ['maker', 'taker']
-        if (!so.order_type in order_types || !so.order_type) {
-          so.order_type = 'maker'
-        }
-
-        var db_cursor, trade_cursor
-        var query_start = tb().resize(so.period_length).subtract(so.min_periods * 2).toMilliseconds()
-        var days = Math.ceil((new Date().getTime() - query_start) / 86400000)
-        var session = null
-        var sessions = get('db.sessions')
-        var balances = get('db.balances')
-        var trades = get('db.trades')
+        let db_cursor, trade_cursor
+        let query_start = tb().resize(so.period_length).subtract(so.min_periods * 2).toMilliseconds()
+        let days = Math.ceil((new Date().getTime() - query_start) / 86400000)
+        let session = null
+        let sessions = get('db.sessions')
+        let balances = get('db.balances')
+        let trades = get('db.trades')
+        let my_trades = get('db.my_trades')
+        let periods = get('db.periods')
+        let resume_markers = get('db.resume_markers')
         get('db.mongo').collection('trades').ensureIndex({selector: 1, time: 1})
-        var resume_markers = get('db.resume_markers')
         get('db.mongo').collection('resume_markers').ensureIndex({selector: 1, to: -1})
-        var marker = {
+        let marker = {
           id: crypto.randomBytes(4).toString('hex'),
           selector: so.selector.normalized,
           from: null,
           to: null,
           oldest_time: null
         }
-        var lookback_size = 0
-        var my_trades_size = 0
-        var my_trades = get('db.my_trades')
-        var periods = get('db.periods')
+        let lookback_size = 0
+        let my_trades_size = 0
 
-        console.log('Starting Backfill:')
-        var zenbot_cmd = process.platform === 'win32' ? 'zenbot.bat' : 'zenbot.sh'; // Use 'win32' for 64 bit windows too
-        var backfiller = spawn(path.resolve(__dirname, '..', zenbot_cmd), ['backfill', so.selector.normalized, '--days', days])
+        s.info_log.log('Starting Backfill:')
+        let zenbot_cmd = process.platform === 'win32' ? 'zenbot.bat' : 'zenbot.sh'; // Use 'win32' for 64 bit windows too
+        let backfiller = spawnSync(path.resolve(__dirname, '..', zenbot_cmd), ['backfill', so.selector.normalized, '--days', days])
         backfiller.stdout.on('data', function(data){
           if(data.toString() === '.') data = "gathering backfill.."
-          console.log(data.toString())
-          // s.screen.render()
+          s.info_log.log(data.toString())
         })
         backfiller.stderr.on('data', function(data){
-          console.error("err: " + data.toString())
-        //   s.screen.render()
+          s.error_log.log("err: " + data.toString())
         })
-        // backfiller.stdout.pipe(process.stdout)
-        // backfiller.stderr.pipe(process.stderr)
-        backfiller.on('exit', function (code) {
+        backfiller.on('exit',
+          function (code) {
           if (code) {
             process.exit(code)
           }
@@ -532,7 +433,7 @@ module.exports = function container (get, set, clear) {
               opts.query.time = {$gt: db_cursor}
             }
             else {
-              trade_cursor = s.exchange.getCursor(query_start) 
+              trade_cursor = s.exchange.getCursor(query_start)
               opts.query.time = {$gte: query_start}
             }
             get('db.trades').select(opts, function (err, trades) {
@@ -565,7 +466,7 @@ module.exports = function container (get, set, clear) {
                     if (err) throw err
                     var prev_session = prev_sessions[0]
                     if (prev_session && !cmd.reset_profit) {
-                      if (prev_session.orig_capital && prev_session.orig_price && ((so.mode === 'paper' && !raw_opts.currency_capital && !raw_opts.asset_capital) || (so.mode === 'live' && prev_session.balance.asset == s.balance.asset && prev_session.balance.currency == s.balance.currency))) {
+                      if (prev_session.orig_capital && prev_session.orig_price && ((so.mode === 'paper' && !common_opts.currency_capital && !common_opts.asset_capital) || (so.mode === 'live' && prev_session.balance.asset == s.balance.asset && prev_session.balance.currency == s.balance.currency))) {
                         s.orig_capital = session.orig_capital = prev_session.orig_capital
                         s.orig_price = session.orig_price = prev_session.orig_price
                         if (so.mode === 'paper') {

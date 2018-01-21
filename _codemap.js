@@ -5,7 +5,7 @@ module.exports = {
     require('./db/_codemap'),
     require('./lib/_codemap')
   ],
-  'conf': {},
+  // 'conf': {},
   'exchanges.list': [],
   'strategies.list': []
 }

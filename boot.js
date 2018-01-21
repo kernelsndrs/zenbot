@@ -5,7 +5,7 @@ module.exports = function (cb) {
   let zenbot = require('./')()
   let c = getConfiguration()
   addDefaultsIfNotInConf(c)
-  zenbot.set('@zenbot:conf', c)
+  zenbot.set('zenbot:conf', c)
   setupMongo()
   function setupMongo() {
 
