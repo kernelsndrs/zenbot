@@ -139,6 +139,8 @@ c.post_only = true
 
 // Misc options:
 
+//recent period info refresh rate
+c.refresh_recent_periods = 1000
 // default # days for backfill and sim commands
 c.days = 14
 // defaults to a high number of lookback periods

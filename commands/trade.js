@@ -46,6 +46,7 @@ module.exports = function container (get, set, clear) {
       .option('--max_slippage_pct <pct>', 'avoid selling at a slippage pct above this float', c.max_slippage_pct)
       .option('--rsi_periods <periods>', 'number of periods to calculate RSI at', Number, c.rsi_periods)
       .option('--poll_trades <ms>', 'poll new trades at this interval in ms', Number, c.poll_trades)
+      .option('--refresh_recent_periods <ms>', 'Refresh the recent period info at this interval', Number, c.refresh_recent_periods)
       .option('--currency_increment <amount>', 'Currency increment, if different than the asset increment', String, null)
       .option('--keep_lookback_periods <amount>', 'Keep this many lookback periods max. ', Number, c.keep_lookback_periods)
       .option('--disable_stats', 'disable printing order stats')
@@ -68,6 +69,26 @@ module.exports = function container (get, set, clear) {
         s.shouldSaveStats = false
         so.mode = so.paper ? 'paper' : 'live'
         so.selector = get('lib.objectify-selector')(selector || c.selector)
+        let hour = /(\d+)h/
+        let minute = /(\d+)m/
+        let second = /(\d+)s/
+        if ((result = so.period_length.match(hour)) !== null){
+          let mili = result[1]  * 60 * 1000
+          if(so.poll_trades > mili) {
+            so.poll_trades = mili
+          }
+        }else if((result = so.period_length.match(minute)) !== null){
+          let mili = result[1] * 1000
+          if(so.poll_trades > mili) {
+            so.poll_trades = mili
+          }
+
+        }else if((result = so.period_length.match(second)) !== null){
+          let mili = result[1] * 1000
+          if(so.poll_trades > mili) {
+            so.poll_trades = mili
+          }
+        }
         let order_types = ['maker', 'taker']
         if(!so.order_type in order_types || !so.order_type) {
           so.order_type = 'maker'
@@ -296,7 +317,7 @@ module.exports = function container (get, set, clear) {
           backfiller.stdout.on('data', function(data){
             if(percent > .99) percent = 0.00
             donut.update([
-              {percent: parseFloat(percent %1).toFixed(2), label: 'backtesting', color: [0, 0, 255]}
+              {percent: parseFloat(percent %1).toFixed(2), label: 'backtesting', color: [0, 255, 0]}
             ])
             s.screen.render()
             percent += .01
@@ -381,6 +402,11 @@ module.exports = function container (get, set, clear) {
 
                   forwardScan()
                   setInterval(forwardScan, so.poll_trades)
+
+                  setInterval(function() {
+                    engine.writeReport(false)
+                  }, so.refresh_recent_periods
+                  )
                 })
               })
             }else {
@@ -393,7 +419,6 @@ module.exports = function container (get, set, clear) {
             }
           })
         }
-
         function forwardScan () {
           function saveSession () {
             engine.syncBalance(function (err) {
@@ -572,6 +597,7 @@ module.exports = function container (get, set, clear) {
         setupKeyboardCommands()
         saveStatsLoop()
         backfillData()
+
       })
   }
 }
