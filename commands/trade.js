@@ -16,6 +16,7 @@ let tb = require('timebucket')
 module.exports = function container (get, set, clear) {
   let c = get('conf')
   let collectionService = get('lib.collection-service')(get, set, clear)
+
   return function (program) {
     program
       .command('trade [selector]')
@@ -51,7 +52,6 @@ module.exports = function container (get, set, clear) {
       .option('--reset_profit', 'start new profit calculation from 0')
       .option('--debug', 'output detailed debug info')
       .action(function (selector, cmd) {
-
         let common_opts = minimist(process.argv)
         let s = {options: JSON.parse(JSON.stringify(common_opts))}
         let so = s.options
@@ -61,16 +61,6 @@ module.exports = function container (get, set, clear) {
             so[k] = cmd[k]
           }
         })
-        //
-        // var _log = console.log;
-        // console.log = function(message){
-        //   s.info_log.log(message)
-        // };
-        // var _error = console.error;
-        // console.error = function(message) {
-        //   if(typeof message === 'object') message = JSON.stringify((message))
-        //   s.error_log.log(message)
-        // }
         so.currency_increment = cmd.currency_increment
         so.keep_lookback_periods = cmd.keep_lookback_periods
         so.debug = cmd.debug
@@ -88,9 +78,26 @@ module.exports = function container (get, set, clear) {
           process.exit(1)
         }
         let engine = get('lib.engine')(s)
-        engine.createTextUI()
-
-
+        let db_cursor, trade_cursor
+        let query_start = tb().resize(so.period_length).subtract(so.min_periods * 2).toMilliseconds()
+        let days = Math.ceil((new Date().getTime() - query_start) / 86400000)
+        let session = null
+        let sessions = get('db.sessions')
+        let balances = get('db.balances')
+        let my_trades = get('db.my_trades')
+        let periods = get('db.periods')
+        let trades = collectionService.getTrades();
+        let resume_markers = collectionService.getResumeMarkers();
+        let marker = {
+          id: crypto.randomBytes(4).toString('hex'),
+          selector: so.selector.normalized,
+          from: null,
+          to: null,
+          oldest_time: null
+        }
+        let lookback_size = 0
+        let my_trades_size = 0
+        let prev_timeout = null
         function listKeys() {
           const keyMap = new Map()
           keyMap.set('b', 'limit'.grey + ' BUY'.green)
@@ -217,8 +224,7 @@ module.exports = function container (get, set, clear) {
           ].join('\n')
           engine.displayPopup(text)
 
-        }              
-
+        }
         //Stats Functions
         function toggleStats(){
           s.shouldSaveStats = !s.shouldSaveStats;
@@ -237,45 +243,78 @@ module.exports = function container (get, set, clear) {
             saveStatsLoop()
           }, 10000)
         }
-        saveStatsLoop()
-        
+        function backfillData() {
+          s.popup_box = blessed.box({
+            top: 'center',
+            left: 'center',
+            width: '50%',
+            height: '50%',
+            tags: true,
+            border: {
+              type: 'line'
+            },
+            style: {
+              fg: 'green',
+              bg: 'black',
+              border: {
+                fg: '#f0f0f0'
+              },
+              hover: {
+                fg: 'white'
+              }
+            },
+            scrollable: true,
+            alwaysScroll: true,
+            scrollbar: {
+              ch: ' ',
+              inverse: true
+            }
+          })
+          s.screen.append(s.popup_box)
+          let percent = 0.00
+          let donut = contrib.donut({
+            label: 'Loading Backtest',
+            radius: 8,
+            arcWidth: 3,
+            yPadding: 2,
+            data: [
+              {percent: 0, label: 'backtesting', color: 'green'}
+            ]
+          })
+
+          s.popup_box.insertTop('Starting Backfill:')
+          s.popup_box.append(donut)
 
 
-        let db_cursor, trade_cursor
-        let query_start = tb().resize(so.period_length).subtract(so.min_periods * 2).toMilliseconds()
-        let days = Math.ceil((new Date().getTime() - query_start) / 86400000)
-        let session = null
-        let sessions = get('db.sessions')
-        let balances = get('db.balances')
-        let my_trades = get('db.my_trades')
-        let periods = get('db.periods')
-        let trades = collectionService.getTrades();
-        let resume_markers = collectionService.getResumeMarkers();
-        let marker = {
-          id: crypto.randomBytes(4).toString('hex'),
-          selector: so.selector.normalized,
-          from: null,
-          to: null,
-          oldest_time: null
+          let zenbot_cmd = process.platform === 'win32' ? 'zenbot.bat' : 'zenbot.sh'; // Use 'win32' for 64 bit windows too
+          let backfiller = spawn(path.resolve(__dirname, '..', zenbot_cmd), ['backfill', so.selector.normalized, '--days', days])
+          s.popup_box.focus()
+          s.popup_box.key('q', function(ch,key){
+            backfiller.kill()
+            process.exit(0)
+          })
+          backfiller.stdout.on('data', function(data){
+            if(percent > .99) percent = 0.00
+            donut.update([
+              {percent: parseFloat(percent %1).toFixed(2), label: 'backtesting', color: [0, 0, 255]}
+            ])
+            s.screen.render()
+            percent += .01
+          })
+          backfiller.stderr.on('data', function(data){
+            s.error_log.log("err: " + data.toString())
+          })
+          backfiller.on('exit',
+            function (code) {
+              if (code) {
+                process.exit(code)
+              }
+              s.popup_box.destroy()
+              continueAfterBackfill()
+
+            })
         }
-        let lookback_size = 0
-        let my_trades_size = 0
-
-        s.info_log.log('Starting Backfill:')
-        let zenbot_cmd = process.platform === 'win32' ? 'zenbot.bat' : 'zenbot.sh'; // Use 'win32' for 64 bit windows too
-        let backfiller = spawn(path.resolve(__dirname, '..', zenbot_cmd), ['backfill', so.selector.normalized, '--days', days])
-        backfiller.stdout.on('data', function(data){
-          if(data.toString() === '.') data = "gathering backfill.."
-          s.info_log.log(data.toString())
-        })
-        backfiller.stderr.on('data', function(data){
-          s.error_log.log("err: " + data.toString())
-        })
-        backfiller.on('exit',
-          function (code) {
-          if (code) {
-            process.exit(code)
-          }
+        function continueAfterBackfill() {
           console.log('Backfill complete ')
           function getNext () {
             var opts = {
@@ -350,9 +389,7 @@ module.exports = function container (get, set, clear) {
           }
           engine.writeHeader()
           getNext()
-        })
-
-        var prev_timeout = null
+        }
         function forwardScan () {
           function saveSession () {
             engine.syncBalance(function (err) {
@@ -527,6 +564,11 @@ module.exports = function container (get, set, clear) {
             })
           }
         }
+
+
+        engine.createTextUI()
+        saveStatsLoop()
+        backfillData()
       })
   }
 }
