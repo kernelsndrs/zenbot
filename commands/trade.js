@@ -3,13 +3,17 @@ let tb = require('timebucket')
   , n = require('numbro')
   , path = require('path')
   , spawn = require('child_process').spawn
-  , spawnSync = require('child_process').spawnSync
+  // , spawnSync = require('child_process').spawnSync
   , moment = require('moment')
+
   , crypto = require('crypto')
-  , readline = require('readline')
-  , colors = require('colors')
+  // , readline = require('readline')
+  // , colors = require('colors')
+  // Zero fills text when outputted in various places
   , z = require('zero-fill')
+  //Inspects the SO object when "O" is pressed
   , cliff = require('cliff')
+  //Used to create Text UI Items
   , blessed = require('blessed')
   , contrib = require('blessed-contrib')
 
@@ -196,7 +200,7 @@ module.exports = function container (get, set, clear) {
             listOptions()
           })
           s.screen.key(['S-o'], function(ch, key) {
-            s.info_log.log(cliff.inspect(so))
+            engine.displayPopup(cliff.inspect(so))
           })
           s.screen.key(['S-p'], function(ch, key) {
             engine.printTrade(false)
@@ -230,7 +234,8 @@ module.exports = function container (get, set, clear) {
           text += (z(10, 'DESC'.grey, ' ') + '\t' + (get('strategies.' + so.strategy).description).grey)
           text += ('\n')
           text += [
-            z(10, 'MODE'.grey , ' ') + '\t' +  so.mode.toUpperCase() + (so.mode === 'live' && (so.manual === false || typeof so.manual === 'undefined')) ? '       ' + 'AUTO'.black.bgRed + '    ' : '       ' + 'MANUAL'.black.bgGreen + '  ',
+            z(10, 'MODE'.grey, ' ') + '\t' +  so.mode,
+            z(10, 'MANUAL?'.grey, ' ') + '\t' + ((so.manual === false || typeof so.manual === 'undefined') ? 'AUTO'.black.bgRed  : 'MANUAL'.black.bgGreen),
             z(10, 'PERIOD'.grey, ' ') + '\t' + so.period_length,
             z(10, 'ORDER TYPE'.grey, ' ') + '\t' + (so.order_type === 'maker' ? so.order_type.toUpperCase().green : so.order_type.toUpperCase().red),
             z(10, 'SLIPPAGE'.grey, ' ') + '\t' + (so.mode === 'paper' ? 'avg. '.grey + so.avg_slippage_pct + '%' : 'max '.grey + so.max_slippage_pct + '%'),
