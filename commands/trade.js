@@ -344,7 +344,7 @@ module.exports = function container (get, set, clear) {
 
             })
         }
-``
+
 
         function continueAfterBackfill() {
           s.info_log.log('Backfill complete ')
@@ -408,10 +408,9 @@ module.exports = function container (get, set, clear) {
                   if(lookback_size = s.lookback.length > so.keep_lookback_periods){
                     s.lookback.splice(-1,1)
                   }
-
+                  engine.writeReport(true)
                   forwardScan()
                   setInterval(forwardScan, so.poll_trades)
-
                   setInterval(function() {
                     engine.writeReport(false)
                   }, so.refresh_recent_periods
@@ -488,7 +487,7 @@ module.exports = function container (get, set, clear) {
                   s.error_log.log(err)
                 }
                 if (s.period) {
-                  engine.writeReport(true)
+                  // engine.writeReport(true)
                 } else {
                   s.info_log.log('Waiting on first live trade to display reports, could be a few minutes ...')
                 }
