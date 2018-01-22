@@ -76,21 +76,25 @@ module.exports = function container (get, set, clear) {
         let hour = /(\d+)h/
         let minute = /(\d+)m/
         let second = /(\d+)s/
+        if(typeof so.period_length === 'undefined'){
+          console.log("error: --period_length not defined")
+          process.exit(0)
+        }
         if ((result = so.period_length.match(hour)) !== null){
-          let mili = result[1]  * 60 * 1000
-          if(so.poll_trades > mili) {
-            so.poll_trades = mili
+          so.period_length_mili = result[1]  * 60 * 1000
+          if(so.poll_trades > so.period_length_mili) {
+            so.poll_trades = so.period_length_mili
           }
         }else if((result = so.period_length.match(minute)) !== null){
-          let mili = result[1] * 1000
-          if(so.poll_trades > mili) {
-            so.poll_trades = mili
+          so.period_length_mili = result[1] * 1000
+          if(so.poll_trades > so.period_length_mili) {
+            so.poll_trades = so.period_length_mili
           }
 
         }else if((result = so.period_length.match(second)) !== null){
-          let mili = result[1] * 1000
-          if(so.poll_trades > mili) {
-            so.poll_trades = mili
+          so.period_length_mili = result[1] * 1000
+          if(so.poll_trades > so.period_length_mili) {
+            so.poll_trades = so.period_length_mili
           }
         }
         let order_types = ['maker', 'taker']
@@ -405,15 +409,20 @@ module.exports = function container (get, set, clear) {
                       }
                     }
                   }
-                  if(lookback_size = s.lookback.length > so.keep_lookback_periods){
-                    s.lookback.splice(-1,1)
-                  }
+                  //Initial report and data scan
                   engine.writeReport(true)
                   forwardScan()
+                  //scan for new data
                   setInterval(forwardScan, so.poll_trades)
+                  //interval to refresh current data
                   setInterval(function() {
-                    engine.writeReport(false)
-                  }, so.refresh_recent_periods
+                      engine.writeReport(false)
+                    }, so.refresh_recent_periods
+                  )
+                  //interval to refresh recent periods
+                  setInterval(function() {
+                      engine.writeReport(true)
+                    }, so.period_length_mili
                   )
                 })
               })
@@ -428,6 +437,10 @@ module.exports = function container (get, set, clear) {
           })
         }
         function forwardScan () {
+
+          if(lookback_size = s.lookback.length > so.keep_lookback_periods){
+            s.lookback.splice(-1,1)
+          }
           function saveSession () {
             engine.syncBalance(function (err) {
               if (!err && s.balance.asset === undefined) {
