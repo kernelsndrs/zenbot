@@ -141,6 +141,10 @@ module.exports = function container (get, set, clear) {
           keyMap.set('d', 'dump statistical output to HTML file'.grey)
           keyMap.set('D', 'toggle automatic HTML dump to file'.grey)
           keyMap.set('q', 'Close current prompt'.grey)
+          keyMap.set('\u2190', 'Focus Prev'.grey)
+          keyMap.set('\u2192', 'Focus Next'.grey)
+          keyMap.set('\u2191', 'Scroll Up, If Avail'.grey)
+          keyMap.set('\u2193', 'Scroll Down, If Avail'.grey)
           let lines = []
           lines.push('\nAvailable command keys:\n\n')
           keyMap.forEach((value, key) => {
