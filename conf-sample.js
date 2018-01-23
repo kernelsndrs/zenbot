@@ -141,7 +141,9 @@ c.post_only = true
 
 //recent period info refresh rate
 c.refresh_recent_periods = 1000
-// default # days for backfill and sim commands
+c.TUI = {}
+c.TUI.line_chart = false
+// default # days for backfill and sim  commands
 c.days = 14
 // defaults to a high number of lookback periods
 c.keep_lookback_periods = 50000
