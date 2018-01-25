@@ -5,7 +5,6 @@ let tb = require('timebucket')
   , spawn = require('child_process').spawn
   // , spawnSync = require('child_process').spawnSync
   , moment = require('moment')
-
   , crypto = require('crypto')
   // , readline = require('readline')
   // , colors = require('colors')
@@ -478,6 +477,7 @@ module.exports = function container (get, set, clear) {
                 b.buy_hold = s.period.close * (session.orig_capital / session.orig_price)
                 b.buy_hold_profit = (b.buy_hold - session.orig_capital) / session.orig_capital
                 b.vs_buy_hold = (b.consolidated - b.buy_hold) / b.buy_hold
+                c.output.api.on && engine.printTrade(false, false, true)
                 if (so.mode === 'live') {
                   balances.save(b, function (err) {
                     if (err) {
