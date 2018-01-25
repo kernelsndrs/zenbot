@@ -347,8 +347,6 @@ module.exports = function container (get, set, clear) {
 
             })
         }
-
-
         function continueAfterBackfill() {
           s.info_log.log('Backfill complete ')
           engine.writeHeader()
@@ -612,7 +610,6 @@ module.exports = function container (get, set, clear) {
             })
           }
         }
-
 
         engine.createTextUI()
         setupKeyboardCommands()
