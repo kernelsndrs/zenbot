@@ -15,6 +15,7 @@ let tb = require('timebucket')
   //Used to create Text UI Items
   , blessed = require('blessed')
   , contrib = require('blessed-contrib')
+  , nsched = require('nschedule')
 
 module.exports = function container (get, set, clear) {
   let c = get('conf')
@@ -276,6 +277,86 @@ module.exports = function container (get, set, clear) {
             saveStatsLoop()
           }, 10000)
         }
+        function setupIntervals() {
+          let scheduler = new nsched(3)
+          scheduler.add(so.poll_trades, function(done){
+            forwardScan()
+            done()
+          })
+          scheduler.add(so.refresh_recent_periods, function(done){
+            engine.writeReport(false)
+            done()
+          })
+          scheduler.add(so.period_length_mili, function(done){
+            engine.writeReport(true)
+            done()
+          })
+          //scan for new data
+          // let forward_scan_interval = repeatFunctionEveryInterval({
+          //   callback: function () {
+          //     forwardScan()
+          //   },
+          //   duration: so.poll_trades
+          // })
+          // forward_scan_interval && forward_scan_interval.run()
+          // console.log(forward_scan_interval)
+          // forward_scan_interval.run()
+          //interval to refresh current data
+          // let current_data_interval = repeatFunctionEveryInterval({
+          //   callback: function (timer) {
+          //     engine.writeReport(false)
+          //   },
+          //   duration: so.refresh_recent_periods
+          // })
+
+          // current_data_interval.run()
+          // current_data_interval && current_data_interval.run()
+          // interval to refresh recent periods
+          // let recent_periods_interval = repeatFunctionEveryInterval({
+          //   callback: function (timer) {
+          //     engine.writeReport(true)
+          //   },
+          //   duration: so.period_length_mili,
+          // })
+          // recent_periods_interval.run()
+          // recent_periods_interval && recent_periods_interval.run()
+        }
+        function repeatFunctionEveryInterval(options){
+          this.timer = false;
+
+          this.total_ticks = 0;
+
+          this.start_time = undefined;
+          this.current_time = undefined;
+
+          this.duration = (options.duration) ? options.duration : 1000;
+          this.callback = (options.callback) ? options.callback : function() {};
+
+          this.run = function() {
+            this.current_time = Date.now();
+            if (!this.start_time) { this.start_time = this.current_time; }
+
+            this.callback(this);
+
+            let nextTick = this.duration - (this.current_time - (this.start_time + (this.total_ticks * this.duration) ) );
+            this.total_ticks++;
+
+            (function(i) {
+              i.timer = setTimeout(function() {
+                i.run();
+              }, nextTick);
+            }(this));
+
+            return this;
+          };
+
+          this.stop = function(){
+            clearTimeout(this.timer);
+            return this;
+          };
+
+          return this;
+        }
         function backfillData() {
           s.popup_box = blessed.box({
             top: 'center',
@@ -409,18 +490,7 @@ module.exports = function container (get, set, clear) {
                   //Initial report and data scan
                   engine.writeReport(true)
                   forwardScan()
-                  //scan for new data
-                  setInterval(forwardScan, so.poll_trades)
-                  //interval to refresh current data
-                  setInterval(function() {
-                      engine.writeReport(false)
-                    }, so.refresh_recent_periods
-                  )
-                  //interval to refresh recent periods
-                  setInterval(function() {
-                      engine.writeReport(true)
-                    }, so.period_length_mili
-                  )
+                  setupIntervals()
                 })
               })
             }else {
